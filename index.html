@@ -29,9 +29,16 @@
             text-transform: uppercase;
             box-shadow: 0 0 10px #ff00ff, 0 0 20px #00ffff, 0 0 40px #ff00ff, 0 0 80px #00ffff;
         }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
-<body class="flex items-center justify-center p-4 md:p-8">
+<body class="flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
+
+    <!-- Fireworks Canvas -->
+    <canvas id="fireworksCanvas" class="fixed top-0 left-0 w-full h-full pointer-events-none z-50"></canvas>
 
     <div class="glass-card p-8 rounded-[2rem] shadow-2xl w-full max-w-lg transition-all duration-500">
         <div class="text-center mb-6">
@@ -94,56 +101,92 @@
     </div>
 
     <script>
-        function calculate() {
-            const input = document.getElementById('percentages').value;
-            const resDiv = document.getElementById('result');
-            const alertDiv = document.getElementById('statusAlert');
-            const passFailSpan = document.getElementById('passFail');
-            
-            const values = input.split(',')
-                                .map(v => parseFloat(v.trim()))
-                                .filter(v => !isNaN(v));
+        // Fireworks setup
+        const canvas = document.getElementById('fireworksCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
-            if (values.length === 0) {
-                alert("Please enter valid percentages!");
-                return;
+        let fireworks = [];
+        let particles = [];
+
+        class Firework {
+            constructor(x, y, targetY) {
+                this.x = x;
+                this.y = y;
+                this.targetY = targetY;
+                this.speed = 4 + Math.random() * 2;
+                this.exploded = false;
+                this.color = `hsl(${Math.random()*360}, 100%, 50%)`;
             }
-
-            // Logic for Fail/Pass subjects
-            const failSubjects = values.filter(v => v < 20).length;
-            if (failSubjects > 0) {
-                alertDiv.className = "mb-4 p-4 rounded-xl text-sm font-bold text-center bg-red-900/70 text-red-400 border border-red-500";
-                alertDiv.innerText = `Attention: You have ${failSubjects} subject(s) Failed (<20%).`;
-                passFailSpan.innerText = "Fail";
-                passFailSpan.className = "text-lg font-extrabold text-red-400";
-            } else {
-                alertDiv.className = "mb-4 p-4 rounded-xl text-sm font-bold text-center bg-green-900/70 text-green-400 border border-green-500";
-                alertDiv.innerText = "Congratulations! You're Pass in all subjects.";
-                passFailSpan.innerText = "Pass";
-                passFailSpan.className = "text-lg font-extrabold text-green-400";
+            update() {
+                if (this.y > this.targetY) this.y -= this.speed;
+                else if (!this.exploded) this.explode();
             }
-
-            const count = values.length;
-            const sum = values.reduce((a, b) => a + b, 0);
-            const average = sum / count;
-            const marksOutOf20 = (average / 100) * 20;
-
-            document.getElementById('subCount').innerText = count;
-            document.getElementById('avgPerc').innerText = average.toFixed(2) + "%";
-            
-            document.getElementById('marks20').innerText = marksOutOf20.toFixed(2);
-            document.getElementById('finalNote').innerText = 
-                "Final midterm score (out of 20) based on average: " + marksOutOf20.toFixed(2);
-
-            resDiv.classList.remove('hidden');
+            explode() {
+                this.exploded = true;
+                for (let i = 0; i < 30; i++) {
+                    particles.push(new Particle(this.x, this.y, this.color));
+                }
+            }
+            draw() {
+                if (!this.exploded) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                }
+            }
         }
-    </script>
 
-    <style>
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.velX = (Math.random() - 0.5) * 5;
+                this.velY = (Math.random() - 0.5) * 5;
+                this.alpha = 1;
+                this.decay = 0.02 + Math.random() * 0.02;
+            }
+            update() {
+                this.x += this.velX;
+                this.y += this.velY;
+                this.alpha -= this.decay;
+            }
+            draw() {
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
         }
-    </style>
-</body>
-</html>
+
+        function animate() {
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            fireworks.forEach((fw, i) => {
+                fw.update();
+                fw.draw();
+                if (fw.exploded) fireworks.splice(i, 1);
+            });
+
+            particles.forEach((p, i) => {
+                p.update();
+                p.draw();
+                if (p.alpha <= 0) particles.splice(i, 1);
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+
+        function triggerFireworks() {
+            for (let i = 0; i < 5; i++) {
+                let x = Math.random() * canvas.width;
+                let targetY = Math.random() * canvas.height / 2;
+                fireworks.push(new Firework(x
